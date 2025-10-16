@@ -23,7 +23,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
         // Build a fetch Request to BetterAuth's get-session endpoint using incoming cookies/headers
         const protocol = req.protocol;
         const host = req.get('host');
-        const url = `${protocol}://${host}/ba/get-session`;
+        const url = `${protocol}://${host}/get-session`;
 
         const headers = new Headers();
         for (const [key, value] of Object.entries(req.headers as IncomingHttpHeaders)) {

@@ -6,14 +6,14 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 const Dashboard = () => {
     const [message, setMessage] = useState<string>('Loading...');
 
-    useEffect(() => {
-        fetch('http://localhost:3000/api/protected', {
-            credentials: 'include',
-        })
-            .then(res => res.json())
-            .then(data => setMessage(data.message))
-            .catch(err => setMessage('Error: ' + err.message));
-    }, []);
+    // useEffect(() => {
+    //     fetch('http://localhost:3000/api/protected', {
+    //         credentials: 'include',
+    //     })
+    //         .then(res => res.json())
+    //         .then(data => setMessage(data.message))
+    //         .catch(err => setMessage('Error: ' + err.message));
+    // }, []);
 
     return (
         <div className="dashboard-container">
@@ -94,7 +94,7 @@ const SignUpPage = () => {
         }
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:3000/auth/signup', {
+            const res = await fetch('http://localhost:3000/ba/sign-up/email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
