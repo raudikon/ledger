@@ -1,0 +1,1 @@
+-- Legacy migration intentionally left blank. Schema already applied outside Drizzle.

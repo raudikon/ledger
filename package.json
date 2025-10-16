@@ -1,0 +1,17 @@
+{
+    "name": "tax-todo-app",
+    "private": true,
+    "workspaces": [
+        "packages/*"
+    ],
+    "scripts": {
+        "dev": "concurrently \"cd packages/server && bun run dev\" \"cd packages/client && bun run dev\"",
+        "build": "cd packages/server && bun run build && cd ../client && bun run build",
+        "test": "cd packages/server && bun run test && cd ../client && bun run test"
+    },
+    "devDependencies": {
+        "@types/node": "^20.8.0",
+        "concurrently": "^9.2.1",
+        "typescript": "^5.2.2"
+    }
+}
