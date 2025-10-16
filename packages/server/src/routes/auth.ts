@@ -16,3 +16,5 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
 });
 
 export const authRoutes = router;
+
+

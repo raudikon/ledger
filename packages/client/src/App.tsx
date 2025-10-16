@@ -1,27 +1,16 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
-const Dashboard = () => {
-    const [message, setMessage] = useState<string>('Loading...');
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
-    // useEffect(() => {
-    //     fetch('http://localhost:3000/api/protected', {
-    //         credentials: 'include',
-    //     })
-    //         .then(res => res.json())
-    //         .then(data => setMessage(data.message))
-    //         .catch(err => setMessage('Error: ' + err.message));
-    // }, []);
-
-    return (
-        <div className="dashboard-container">
-            <h1 className="dashboard-title">Dashboard</h1>
-            <p>{message}</p>
-        </div>
-    );
-};
+const Dashboard = () => (
+    <div className="dashboard-container">
+        <h1 className="dashboard-title">Dashboard</h1>
+        <p>Welcome back.</p>
+    </div>
+);
 
 const LoginPage = () => {
     const { login, error, loading, isAuthenticated } = useAuth();
@@ -94,7 +83,7 @@ const SignUpPage = () => {
         }
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:3000/ba/sign-up/email', {
+            const res = await fetch(`${API_BASE_URL}/auth/sign-up/email`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',

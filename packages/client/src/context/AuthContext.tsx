@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const login = useCallback(async (email: string, password: string) => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/ba/sign-in/email`, {
+            const res = await fetch(`${API_BASE_URL}/auth/sign-in/email`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
