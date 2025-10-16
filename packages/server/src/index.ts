@@ -20,7 +20,11 @@ const client = postgres(process.env.DATABASE_URL);
 export const db = drizzle(client);
 
 // Middleware
-app.use(cors());
+const clientOrigin = process.env.BETTER_AUTH_URL ?? 'http://localhost:5173';
+app.use(cors({ origin: clientOrigin, credentials: true }));
+// Express 5 uses path-to-regexp v6; use explicit wildcard path instead of '*'
+// Express 5 path-to-regexp v6: use RegExp for wildcard preflight
+app.options(/^\/ba(?:\/.*)?$/, cors({ origin: clientOrigin, credentials: true }));
 app.use(express.json());
 app.set('trust proxy', true);
 
@@ -31,7 +35,9 @@ app.use('/ba', async (req, res) => {
     try {
         const protocol = req.protocol;
         const host = req.get('host');
-        const url = `${protocol}://${host}${req.originalUrl}`;
+        const subPath = req.originalUrl.replace(/^\/ba/, '') || '/';
+        const url = `${protocol}://${host}${subPath}`;
+        console.log(`[BA] Incoming ${req.method} ${req.originalUrl} -> ${subPath}`);
 
         // Build a fetch Request from Express req
         const headers = new Headers();
@@ -58,6 +64,7 @@ app.use('/ba', async (req, res) => {
         });
 
         const response = await betterAuth.handler(request);
+        console.log(`[BA] ${req.method} ${subPath} -> ${response.status}`);
 
         // Copy status and headers back to Express
         res.status(response.status);

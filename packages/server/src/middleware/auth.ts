@@ -1,30 +1,64 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import type { Request, Response, NextFunction } from 'express';
+import type { IncomingHttpHeaders } from 'http';
+import { auth as betterAuth } from '../../auth';
 
 export interface AuthRequest extends Request {
     user?: {
         id: string;
         email: string;
+        name?: string;
+        image?: string | null;
+        emailVerified?: boolean;
+    };
+    session?: {
+        id: string;
+        userId: string;
+        expiresAt: Date;
+        token: string;
     };
 }
 
-export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'No token provided' });
-    }
-
-    const token = authHeader.split(' ')[1];
-
+export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
-            id: string;
-            email: string;
+        // Build a fetch Request to BetterAuth's get-session endpoint using incoming cookies/headers
+        const protocol = req.protocol;
+        const host = req.get('host');
+        const url = `${protocol}://${host}/get-session`;
+
+        const headers = new Headers();
+        for (const [key, value] of Object.entries(req.headers as IncomingHttpHeaders)) {
+            if (Array.isArray(value)) headers.set(key, value.join(', '));
+            else if (typeof value === 'string') headers.set(key, value);
+        }
+
+        const request = new Request(url, { method: 'GET', headers });
+        const response = await betterAuth.handler(request);
+
+        if (!response.ok) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const data = (await response.json()) as
+            | null
+            | {
+                  session: { id: string; userId: string; expiresAt: string; token: string };
+                  user: { id: string; email: string; name?: string; image?: string | null; emailVerified?: boolean };
+              };
+
+        if (!data) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        req.session = {
+            id: data.session.id,
+            userId: data.session.userId,
+            token: data.session.token,
+            expiresAt: new Date(data.session.expiresAt),
         };
-        req.user = decoded;
+        req.user = data.user;
+
         next();
-    } catch (error) {
-        return res.status(401).json({ message: 'Invalid token' });
+    } catch (err) {
+        return res.status(401).json({ message: 'Unauthorized' });
     }
 };
