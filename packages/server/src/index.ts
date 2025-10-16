@@ -5,6 +5,8 @@ import postgres from 'postgres';
 import * as schema from './models/schema';
 import { config } from 'dotenv';
 import type { IncomingHttpHeaders } from 'http';
+import { authRoutes } from './routes/auth';
+import { auth as betterAuth } from '../auth';
 
 config({ path: '../../.env' });
 
@@ -20,24 +22,26 @@ const client = postgres(process.env.DATABASE_URL);
 export const db = drizzle(client);
 
 // Middleware
-const clientOrigin = process.env.BETTER_AUTH_URL ?? 'http://localhost:5173';
+const clientOrigin = process.env.APP_ORIGIN ?? process.env.BETTER_AUTH_URL ?? 'http://localhost:5173';
 app.use(cors({ origin: clientOrigin, credentials: true }));
-// Express 5 uses path-to-regexp v6; use explicit wildcard path instead of '*'
 // Express 5 path-to-regexp v6: use RegExp for wildcard preflight
-app.options(/^\/ba(?:\/.*)?$/, cors({ origin: clientOrigin, credentials: true }));
+app.options(/^\/auth(?:\/.*)?$/, cors({ origin: clientOrigin, credentials: true }));
 app.use(express.json());
 app.set('trust proxy', true);
 
-// BetterAuth handler (mounted under /ba to avoid breaking existing routes)
+// Custom auth routes (e.g., /auth/me) should run before the BetterAuth handler
+app.use('/auth', authRoutes);
+
+// BetterAuth handler mounted under /auth
 import { auth as betterAuth } from '../auth';
 
-app.use('/ba', async (req, res) => {
+app.use('/auth', async (req, res) => {
     try {
         const protocol = req.protocol;
         const host = req.get('host');
-        const subPath = req.originalUrl.replace(/^\/ba/, '') || '/';
+        const subPath = req.originalUrl.replace(/^\/auth/, '') || '/';
         const url = `${protocol}://${host}${subPath}`;
-        console.log(`[BA] Incoming ${req.method} ${req.originalUrl} -> ${subPath}`);
+        console.log(`[Auth] Incoming ${req.method} ${req.originalUrl} -> ${subPath}`);
 
         // Build a fetch Request from Express req
         const headers = new Headers();
@@ -64,16 +68,26 @@ app.use('/ba', async (req, res) => {
         });
 
         const response = await betterAuth.handler(request);
-        console.log(`[BA] ${req.method} ${subPath} -> ${response.status}`);
+        console.log(`[Auth] ${req.method} ${subPath} -> ${response.status}`);
 
         // Copy status and headers back to Express
         res.status(response.status);
+        const setCookies = typeof response.headers.getSetCookie === 'function'
+            ? response.headers.getSetCookie()
+            : undefined;
         response.headers.forEach((value, key) => {
-            // Express will manage content-length automatically
-            if (key.toLowerCase() !== 'content-length') {
+            const lowerKey = key.toLowerCase();
+            if (lowerKey === 'set-cookie') {
+                return;
+            }
+            if (lowerKey !== 'content-length') {
                 res.setHeader(key, value);
             }
         });
+        if (setCookies && setCookies.length > 0) {
+            console.log('[Auth] forwarding cookies:', setCookies);
+            res.setHeader('set-cookie', setCookies);
+        }
 
         const buffer = Buffer.from(await response.arrayBuffer());
         res.send(buffer);
@@ -87,10 +101,6 @@ app.use('/ba', async (req, res) => {
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
-
-// Existing custom auth routes remain mounted under /auth (temporary)
-import { authRoutes } from './routes/auth';
-app.use('/auth', authRoutes);
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);

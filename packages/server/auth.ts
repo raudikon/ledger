@@ -23,13 +23,14 @@ if (!process.env.BETTER_AUTH_SECRET) {
 const client = postgres(process.env.DATABASE_URL, { max: 1 });
 const db = drizzle(client);
 
+const appOrigin = process.env.APP_ORIGIN ?? process.env.BETTER_AUTH_URL ?? 'http://localhost:5173';
+const apiOrigin = process.env.API_ORIGIN ?? process.env.BETTER_AUTH_BASE_URL ?? 'http://localhost:3000';
+
 export const auth = betterAuth({
     basePath: '/',
-    baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:5173',
+    baseURL: apiOrigin,
     secret: process.env.BETTER_AUTH_SECRET,
-    trustedOrigins: [
-        process.env.BETTER_AUTH_URL ?? 'http://localhost:5173',
-    ],
+    trustedOrigins: [appOrigin, apiOrigin],
     session: {
         cookie: {
             sameSite: 'none',

@@ -1,5 +1,4 @@
 import type { Request, Response, NextFunction } from 'express';
-import type { IncomingHttpHeaders } from 'http';
 import { auth as betterAuth } from '../../auth';
 
 export interface AuthRequest extends Request {
@@ -20,42 +19,31 @@ export interface AuthRequest extends Request {
 
 export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        // Build a fetch Request to BetterAuth's get-session endpoint using incoming cookies/headers
-        const protocol = req.protocol;
-        const host = req.get('host');
-        const url = `${protocol}://${host}/get-session`;
-
         const headers = new Headers();
-        for (const [key, value] of Object.entries(req.headers as IncomingHttpHeaders)) {
-            if (Array.isArray(value)) headers.set(key, value.join(', '));
-            else if (typeof value === 'string') headers.set(key, value);
-        }
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (!value) return;
+            if (Array.isArray(value)) {
+                headers.set(key, value.join(', '));
+            } else {
+                headers.set(key, value);
+            }
+        });
 
-        const request = new Request(url, { method: 'GET', headers });
-        const response = await betterAuth.handler(request);
+        const sessionResponse = await betterAuth.api.getSession({
+            headers,
+        });
 
-        if (!response.ok) {
-            return res.status(401).json({ message: 'Unauthorized' });
-        }
-
-        const data = (await response.json()) as
-            | null
-            | {
-                  session: { id: string; userId: string; expiresAt: string; token: string };
-                  user: { id: string; email: string; name?: string; image?: string | null; emailVerified?: boolean };
-              };
-
-        if (!data) {
+        if (!sessionResponse) {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
         req.session = {
-            id: data.session.id,
-            userId: data.session.userId,
-            token: data.session.token,
-            expiresAt: new Date(data.session.expiresAt),
+            id: sessionResponse.session.id,
+            userId: sessionResponse.session.userId,
+            token: sessionResponse.session.token,
+            expiresAt: new Date(sessionResponse.session.expiresAt),
         };
-        req.user = data.user;
+        req.user = sessionResponse.user;
 
         next();
     } catch (err) {
