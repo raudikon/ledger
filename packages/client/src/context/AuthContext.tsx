@@ -1,70 +1,107 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 
-interface User {
+type User = {
     id: string;
     email: string;
-}
+    name?: string;
+    image?: string | null;
+};
 
-interface AuthContextType {
+type AuthContextType = {
     user: User | null;
     loading: boolean;
-    login: (token: string) => void;
-    logout: () => void;
-}
+    error: string | null;
+    isAuthenticated: boolean;
+    login: (email: string, password: string) => Promise<void>;
+    logout: () => Promise<void> | void;
+    refreshUser: () => Promise<void>;
+};
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        const checkAuth = async () => {
-            const token = localStorage.getItem('token');
-            if (token) {
-                try {
-                    const response = await fetch('http://localhost:3000/auth/me', {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
-                    if (response.ok) {
-                        const userData = await response.json();
-                        setUser(userData);
-                    } else {
-                        localStorage.removeItem('token');
-                    }
-                } catch (error) {
-                    localStorage.removeItem('token');
-                }
-            }
-            setLoading(false);
-        };
-
-        checkAuth();
+    const fetchMe = useCallback(async () => {
+        const res = await fetch(`${API_BASE_URL}/auth/me`, {
+            credentials: 'include',
+        });
+        if (!res.ok) throw new Error('Not authenticated');
+        return (await res.json()) as User;
     }, []);
 
-    const login = (token: string) => {
-        localStorage.setItem('token', token);
-        // Fetch user data here if needed
-    };
+    const refreshUser = useCallback(async () => {
+        try {
+            const me = await fetchMe();
+            setUser(me);
+            setError(null);
+        } catch (e) {
+            setUser(null);
+        }
+    }, [fetchMe]);
 
-    const logout = () => {
-        localStorage.removeItem('token');
+    useEffect(() => {
+        (async () => {
+            try {
+                await refreshUser();
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, [refreshUser]);
+
+    const login = useCallback(async (email: string, password: string) => {
+        setLoading(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ email, password }),
+            });
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || 'Invalid email or password');
+            }
+            await refreshUser();
+            setError(null);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Login failed');
+            setUser(null);
+            throw e;
+        } finally {
+            setLoading(false);
+        }
+    }, [refreshUser]);
+
+    const logout = useCallback(async () => {
+        // Optional: implement sign-out proxy. For now, clear local state.
         setUser(null);
-    };
+    }, []);
+
+    const value = useMemo<AuthContextType>(() => ({
+        user,
+        loading,
+        error,
+        isAuthenticated: Boolean(user),
+        login,
+        logout,
+        refreshUser,
+    }), [user, loading, error, login, logout, refreshUser]);
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout }}>
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );
 };
 
 export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
+    const ctx = useContext(AuthContext);
+    if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+    return ctx;
 };
